@@ -64,15 +64,37 @@ def _hash_key(raw: str) -> str:
 
 
 def _format_tool_call(item: dict) -> str | None:
-    """Render a tool call as compact markdown for OpenAI-compatible clients."""
+    """Render a tool call as a collapsible markdown block for OpenAI-compatible clients.
+
+    Summary line shows the tool name plus a short hint (e.g. the command for
+    run_command); expanding reveals the full arguments as JSON.
+    """
     if item.get("type") != "function_call" or item.get("status") != "in_progress":
         return None
 
-    arguments = item.get("arguments")
-    title = arguments.get("title") if isinstance(arguments, dict) else None
+    arguments = item.get("arguments") if isinstance(item.get("arguments"), dict) else {}
+    title = arguments.get("title")
     name = str(title or item.get("name") or "tool").strip() or "tool"
-    return f"\n\n`{name}`\n\n"
 
+    args = {k: v for k, v in arguments.items() if k != "title"}
+    if not args:
+        return f"\n\n`{name}`\n\n"
+
+    # Single-line hint for the summary; keep it safe for the <summary> tag.
+    hint = str(args.get("command") or args.get("path") or args.get("query") or "")
+    hint = " ".join(hint.split()).replace("<", "‹").replace(">", "›")
+    if len(hint) > 80:
+        hint = hint[:80] + "…"
+    summary = f"{name}: {hint}" if hint else name
+
+    args_json = json.dumps(args, ensure_ascii=False, indent=2, default=str)
+    if len(args_json) > 2000:
+        args_json = args_json[:2000] + "\n… (truncated)"
+
+    return (
+        f"\n\n<details>\n<summary>⏳ {summary}</summary>\n\n"
+        f"```json\n{args_json}\n```\n\n</details>\n\n"
+    )
 
 async def _authenticate(request: Request) -> str:
     """Validate Bearer token from Authorization header.  Returns user_id."""
