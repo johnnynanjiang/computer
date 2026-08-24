@@ -96,6 +96,7 @@ def _format_tool_call(item: dict) -> str | None:
         f"```json\n{args_json}\n```\n\n</details>\n\n"
     )
 
+
 async def _authenticate(request: Request) -> str:
     """Validate Bearer token from Authorization header.  Returns user_id."""
     auth = request.headers.get("Authorization", "")
