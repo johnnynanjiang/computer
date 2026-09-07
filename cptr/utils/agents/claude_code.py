@@ -192,7 +192,11 @@ async def run_claude_code_agent(
             observed_session_id = session_id
             tool_calls: dict[int, AgentToolUpdate] = {}
             tool_input_json: dict[int, str] = {}
-            received_tool_call_ids: set[str] = set()
+            # Call IDs for which we've yielded a *completed* update with real
+            # arguments. Only gates the AssistantMessage fallback below —
+            # content_block_start alone doesn't count, since its arguments
+            # are typically still empty (input streams in via deltas).
+            completed_tool_call_ids: set[str] = set()
             received_text_delta = False
             received_thinking_delta = False
 
@@ -228,7 +232,6 @@ async def run_claude_code_agent(
                     elif event_type == "content_block_start":
                         index, tool = _tool_update_from_claude_start(event)
                         if tool:
-                            received_tool_call_ids.add(tool.call_id)
                             if index is not None:
                                 tool_calls[index] = tool
                             yield tool
@@ -248,6 +251,7 @@ async def run_claude_code_agent(
                                         arguments = parsed
                                 except json.JSONDecodeError:
                                     pass
+                            completed_tool_call_ids.add(tool.call_id)
                             yield AgentToolUpdate(
                                 call_id=tool.call_id,
                                 name=tool.name,
@@ -277,7 +281,7 @@ async def run_claude_code_agent(
                             if (
                                 isinstance(call_id, str)
                                 and call_id.strip()
-                                and call_id not in received_tool_call_ids
+                                and call_id not in completed_tool_call_ids
                             ):
                                 title = str(
                                     getattr(block, "name", None)
@@ -286,7 +290,7 @@ async def run_claude_code_agent(
                                 ).strip()
                                 raw_input = getattr(block, "input", None)
                                 arguments = raw_input if isinstance(raw_input, dict) else {}
-                                received_tool_call_ids.add(call_id)
+                                completed_tool_call_ids.add(call_id)
                                 yield AgentToolUpdate(
                                     call_id=call_id.strip(),
                                     name="agent_tool",

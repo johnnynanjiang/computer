@@ -63,13 +63,21 @@ def _hash_key(raw: str) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
+_TERMINAL_TOOL_STATUSES = {"completed", "rejected", "failed"}
+
+
 def _format_tool_call(item: dict) -> str | None:
     """Render a tool call as a collapsible markdown block for OpenAI-compatible clients.
 
     Summary line shows the tool name plus a short hint (e.g. the command for
     run_command); expanding reveals the full arguments as JSON.
+
+    Triggers on terminal status rather than in_progress: some agent backends
+    (e.g. the Claude Agent SDK adapter) only attach full arguments once the
+    call finishes streaming its input — the in_progress event carries just
+    the tool name, so rendering there would only ever show a bare name.
     """
-    if item.get("type") != "function_call" or item.get("status") != "in_progress":
+    if item.get("type") != "function_call" or item.get("status") not in _TERMINAL_TOOL_STATUSES:
         return None
 
     arguments = item.get("arguments") if isinstance(item.get("arguments"), dict) else {}
@@ -81,7 +89,16 @@ def _format_tool_call(item: dict) -> str | None:
         return f"\n\n`{name}`\n\n"
 
     # Single-line hint for the summary; keep it safe for the <summary> tag.
-    hint = str(args.get("command") or args.get("path") or args.get("query") or "")
+    hint = str(
+        args.get("command")
+        or args.get("file_path")
+        or args.get("path")
+        or args.get("url")
+        or args.get("pattern")
+        or args.get("query")
+        or args.get("prompt")
+        or ""
+    )
     hint = " ".join(hint.split()).replace("<", "‹").replace(">", "›")
     if len(hint) > 80:
         hint = hint[:80] + "…"

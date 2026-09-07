@@ -230,8 +230,21 @@
 				const label = args.background ? 'Background sub-agent' : 'Sub-agent';
 				return `${label}: "${t.length > 60 ? t.slice(0, 60) + '…' : t}"`;
 			}
-			case 'agent_tool':
-				return args.title || 'Agent tool';
+			case 'agent_tool': {
+				const title = args.title || 'Agent tool';
+				const raw =
+					args.command ||
+					(args.file_path ? shortPath(args.file_path) : '') ||
+					(args.path ? shortPath(args.path) : '') ||
+					args.url ||
+					args.pattern ||
+					args.query ||
+					args.prompt ||
+					'';
+				if (!raw) return title;
+				const hint = raw.length > 60 ? raw.slice(0, 60) + '…' : raw;
+				return `${title}: ${hint}`;
+			}
 			default: {
 				// External tool: {server_id}_{tool_name} → "tool_name (server_id)"
 				const idx = name.indexOf('_');
