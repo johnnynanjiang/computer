@@ -15,7 +15,13 @@
 		chatId: string | null;
 		messageId: string;
 		groupIdx: number;
-		toolLabel: (name: string, args: any) => string;
+		toolLabel: (
+			name: string,
+			args: any,
+			nativeAgent?: boolean,
+			title?: string,
+			hint?: string
+		) => string;
 		onapprove: (messageId: string, callId: string, approved: boolean) => void;
 	}
 
@@ -61,7 +67,15 @@
 	function groupSummaryText(groupCalls: any[]): string {
 		if (groupCalls.length <= 3) {
 			return groupCalls
-				.map((call: any) => toolLabel(call.name || 'tool', call.arguments || {}))
+				.map((call: any) =>
+					toolLabel(
+						call.name || 'tool',
+						call.arguments || {},
+						call.native_agent,
+						call.title,
+						call.hint
+					)
+				)
 				.join(', ');
 		}
 
@@ -238,7 +252,7 @@
 			{#each pendingCalls as item}
 				<div class="flex items-center gap-2 py-1 px-1">
 					<span class="text-xs text-gray-500 dark:text-gray-400 flex-1 min-w-0 line-clamp-1">
-						{toolLabel(item.name, item.arguments || {})}
+						{toolLabel(item.name, item.arguments || {}, item.native_agent, item.title, item.hint)}
 					</span>
 					<span class="flex gap-1 shrink-0">
 						<button

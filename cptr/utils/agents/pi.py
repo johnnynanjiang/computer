@@ -36,7 +36,7 @@ def _content_text(value: Any) -> str:
 
 
 def _tool_name(name: str) -> str:
-    return "run_command" if name == "bash" else "agent_tool"
+    return "run_command" if name == "bash" else name
 
 
 def _message_text(messages: list[dict[str, Any]], system_prompt: str, resumed: bool) -> str:
@@ -77,19 +77,23 @@ def translate_event(event: dict[str, Any]) -> AgentEvent | None:
         call_id = event.get("toolCallId")
         if not isinstance(call_id, str) or not call_id:
             return None
-        raw_name = str(event.get("toolName") or "agent_tool")
+        raw_name = str(event.get("toolName") or "agent_tool").strip() or "agent_tool"
         args = event.get("args") if isinstance(event.get("args"), dict) else {}
-        arguments = {"command": args.get("command")} if raw_name == "bash" else {"input": args}
-        return AgentToolUpdate(call_id, "in_progress", _tool_name(raw_name), arguments)
+        arguments = {"command": args.get("command")} if raw_name == "bash" else dict(args)
+        return AgentToolUpdate(
+            call_id, "in_progress", _tool_name(raw_name), arguments, title=raw_name
+        )
     elif event_type == "tool_execution_end":
         call_id = event.get("toolCallId")
         if not isinstance(call_id, str) or not call_id:
             return None
+        raw_name = str(event.get("toolName") or "agent_tool").strip() or "agent_tool"
         return AgentToolUpdate(
             call_id,
             "failed" if event.get("isError") else "completed",
-            _tool_name(str(event.get("toolName") or "agent_tool")),
+            _tool_name(raw_name),
             output=_content_text(event.get("result")),
+            title=raw_name,
         )
     return None
 

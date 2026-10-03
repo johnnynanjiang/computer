@@ -71,6 +71,7 @@ from cptr.utils.agents.events import (
     AgentToolUpdate,
 )
 from cptr.utils.agents.attachments import prepare_agent_attachments
+from cptr.utils.agents.tool_display import describe_tool_call, is_command_like
 from cptr.utils.model_targets import AgentModelTarget, ApiModelTarget, ModelTarget
 from cptr.utils.identity import identity_for_context
 
@@ -1716,16 +1717,24 @@ async def run_chat_task(
                     ),
                     {},
                 )
+                merged_arguments = {
+                    **(existing.get("arguments") or {}),
+                    **(event.arguments or {}),
+                }
+                display_title, display_hint = describe_tool_call(
+                    name=event.name or existing.get("name"),
+                    title=event.title or existing.get("title"),
+                    arguments=merged_arguments,
+                )
                 call_item = {
                     "type": "function_call",
                     "id": existing.get("id") or f"agent-{event.call_id}",
                     "call_id": event.call_id,
                     "name": _safe_tool_name(event.name or existing.get("name")),
                     "native_agent": True,
-                    "arguments": {
-                        **(existing.get("arguments") or {}),
-                        **(event.arguments or {}),
-                    },
+                    "arguments": merged_arguments,
+                    "title": display_title,
+                    "hint": display_hint,
                     "status": event.status,
                 }
                 _upsert_output_item(output_items, call_item)
@@ -1734,7 +1743,7 @@ async def run_chat_task(
                     capped_event_output = None
                     output_limit = (
                         CHAT_TOOL_COMMAND_MAX_CHARS
-                        if call_item["name"] == "run_command"
+                        if is_command_like(merged_arguments)
                         else CHAT_TOOL_MAX_CHARS
                     )
                     capped_event_output = _append_capped_output("", event.output, output_limit)

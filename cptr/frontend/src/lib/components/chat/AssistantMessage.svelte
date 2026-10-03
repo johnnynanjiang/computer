@@ -141,6 +141,19 @@
 		}
 	}
 
+	/** Mirrors tool_display.py::_clip_hint() — a short, word-boundary-safe
+	 *  glance, not a second truncated copy of the full argument (that's one
+	 *  click away in the expanded JSON). Legacy fallback only; the primary
+	 *  path uses the server-computed hint directly. */
+	function clipHint(value: string): string {
+		const hint = value.split(/\s+/).filter(Boolean).join(' ');
+		if (hint.length <= 20) return hint;
+		let truncated = hint.slice(0, 20);
+		const lastSpace = truncated.lastIndexOf(' ');
+		if (lastSpace > 0) truncated = truncated.slice(0, lastSpace);
+		return `${truncated} ...`;
+	}
+
 	/** Shorten a file path to just the basename for compact display */
 	function shortPath(p: string | undefined): string {
 		if (!p) return '?';
@@ -170,8 +183,23 @@
 	}
 
 	/** Human-readable label for a tool call */
-	function toolLabel(name: string, args: any): string {
+	function toolLabel(
+		name: string,
+		args: any,
+		nativeAgent?: boolean,
+		title?: string,
+		hint?: string
+	): string {
 		const _t = $t;
+		// Native-agent tool calls (external CLIs/SDKs routed through cptr's
+		// adapters) carry a backend-computed title/hint — the single shared
+		// place (tool_display.py) that knows how to read each backend's
+		// argument shape. `run_command` stays on the switch below since both
+		// cptr's own tool and the adapters' shell-command bucket already
+		// agree on the same {command, background} shape.
+		if (nativeAgent && name !== 'run_command' && title) {
+			return hint ? `${title}: ${hint}` : title;
+		}
 		switch (name) {
 			case 'read_file': {
 				const p = shortPath(args.path);
@@ -231,6 +259,8 @@
 				return `${label}: "${t.length > 60 ? t.slice(0, 60) + '…' : t}"`;
 			}
 			case 'agent_tool': {
+				// Legacy fallback for native-agent items saved before title/hint
+				// were computed server-side (e.g. older chat history).
 				const title = args.title || 'Agent tool';
 				const raw =
 					args.command ||
@@ -242,8 +272,7 @@
 					args.prompt ||
 					'';
 				if (!raw) return title;
-				const hint = raw.length > 60 ? raw.slice(0, 60) + '…' : raw;
-				return `${title}: ${hint}`;
+				return `${title}: ${clipHint(raw)}`;
 			}
 			default: {
 				// External tool: {server_id}_{tool_name} → "tool_name (server_id)"

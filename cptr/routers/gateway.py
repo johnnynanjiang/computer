@@ -32,6 +32,7 @@ from pydantic import BaseModel
 from cptr.models import Auth, Chat, ChatMessage, Config
 from cptr.models.workspaces import Workspace
 from cptr.utils.agents.prompts import message_text
+from cptr.utils.agents.tool_display import describe_tool_call
 from cptr.utils.config import AuthResult, now_ms
 from cptr.utils.runtime import Runtime, FileError
 
@@ -70,41 +71,30 @@ def _format_tool_call(item: dict) -> str | None:
     """Render a tool call as a collapsible markdown block for OpenAI-compatible clients.
 
     Summary line shows the tool name plus a short hint (e.g. the command for
-    run_command); expanding reveals the full arguments as JSON.
+    run_command); expanding reveals the full arguments as JSON. Title/hint are
+    derived by the shared `describe_tool_call()` — the single place that knows
+    how to read every backend's argument shape — rather than guessed here.
 
     Triggers on terminal status rather than in_progress: some agent backends
     (e.g. the Claude Agent SDK adapter) only attach full arguments once the
     call finishes streaming its input — the in_progress event carries just
     the tool name, so rendering there would only ever show a bare name.
+
+    Always renders as an expandable `<details>` block, even when there are no
+    arguments to show — a tool call must never collapse to plain, inert text
+    that's indistinguishable from the model's own prose.
     """
     if item.get("type") != "function_call" or item.get("status") not in _TERMINAL_TOOL_STATUSES:
         return None
 
     arguments = item.get("arguments") if isinstance(item.get("arguments"), dict) else {}
-    title = arguments.get("title")
-    name = str(title or item.get("name") or "tool").strip() or "tool"
-
-    args = {k: v for k, v in arguments.items() if k != "title"}
-    if not args:
-        return f"\n\n`{name}`\n\n"
-
-    # Single-line hint for the summary; keep it safe for the <summary> tag.
-    hint = str(
-        args.get("command")
-        or args.get("file_path")
-        or args.get("path")
-        or args.get("url")
-        or args.get("pattern")
-        or args.get("query")
-        or args.get("prompt")
-        or ""
+    display_title, hint = describe_tool_call(
+        name=item.get("name"), title=item.get("title"), arguments=arguments
     )
-    hint = " ".join(hint.split()).replace("<", "‹").replace(">", "›")
-    if len(hint) > 80:
-        hint = hint[:80] + "…"
-    summary = f"{name}: {hint}" if hint else name
+    summary = f"{display_title}: {hint}" if hint else display_title
 
-    args_json = json.dumps(args, ensure_ascii=False, indent=2, default=str)
+    args = {k: v for k, v in arguments.items() if k not in ("title",)}
+    args_json = json.dumps(args, ensure_ascii=False, indent=2, default=str) if args else "{}"
     if len(args_json) > 2000:
         args_json = args_json[:2000] + "\n… (truncated)"
 

@@ -299,9 +299,10 @@ def _tool_from_event(event: dict[str, Any]) -> AgentToolUpdate | None:
     output = _opencode_tool_output(state)
     return AgentToolUpdate(
         call_id=call_id.strip(),
-        name="agent_tool",
+        name=tool,
         status=status,
-        arguments={"title": tool, **({"state": state} if state else {})},
+        arguments={"state": state} if state else {},
+        title=tool,
         output=output,
     )
 

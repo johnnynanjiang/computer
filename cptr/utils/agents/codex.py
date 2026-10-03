@@ -292,15 +292,55 @@ def _tool_from_item_event(method: str, params: dict[str, Any]) -> AgentToolUpdat
     call_id = params.get("itemId") or item.get("id") or item.get("callId")
     if not isinstance(call_id, str) or not call_id.strip():
         return None
-    title = str(item.get("title") or item.get("name") or item_type or "Codex action").strip()
+    status = "completed" if method == "item/completed" else "in_progress"
     detail = _item_detail(item)
+
+    if "command" in normalized_type and detail:
+        return AgentToolUpdate(
+            call_id=call_id.strip(),
+            name="run_command",
+            status=status,
+            arguments={"command": detail},
+            title="run_command",
+            output=None,
+        )
+
+    # MCP/dynamic-tool/collab items (schema: id, [server], tool, [arguments],
+    # status, ...) carry no title/name/command field. Pass their real fields
+    # through flat instead of falling back to the raw item type string (e.g.
+    # "mcpToolCall"), which left nothing for the display layer to show.
+    tool_name = item.get("tool")
+    if isinstance(tool_name, str) and tool_name.strip():
+        server = item.get("server")
+        title = (
+            f"{server}.{tool_name.strip()}"
+            if isinstance(server, str) and server.strip()
+            else tool_name.strip()
+        )
+        call_args = item.get("arguments")
+        arguments = dict(call_args) if isinstance(call_args, dict) else {}
+        if isinstance(server, str) and server.strip():
+            arguments.setdefault("server", server.strip())
+        arguments.setdefault("tool", tool_name.strip())
+        if detail and "prompt" not in arguments:
+            arguments["prompt"] = detail
+        return AgentToolUpdate(
+            call_id=call_id.strip(),
+            name=tool_name.strip(),
+            status=status,
+            arguments=arguments,
+            title=title,
+            output=None,
+        )
+
+    title = str(item.get("title") or item.get("name") or item_type or "Codex action").strip()
+    arguments = {"prompt": detail} if detail else {}
     return AgentToolUpdate(
         call_id=call_id.strip(),
-        name="run_command" if "command" in normalized_type and detail else "agent_tool",
-        status="completed" if method == "item/completed" else "in_progress",
-        arguments={"command": detail}
-        if "command" in normalized_type and detail
-        else {"title": title},
+        name=title,
+        status=status,
+        arguments=arguments,
+        title=title,
         output=None,
     )
 

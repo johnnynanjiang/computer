@@ -103,9 +103,10 @@ def _tool_update_from_claude_start(
         index if isinstance(index, int) else None,
         AgentToolUpdate(
             call_id=call_id.strip(),
-            name="agent_tool",
+            name=name,
             status="in_progress",
-            arguments={**arguments, "title": name},
+            arguments=arguments,
+            title=name,
         ),
     )
 
@@ -239,8 +240,8 @@ async def run_claude_code_agent(
                         index = event.get("index")
                         tool = tool_calls.get(index) if isinstance(index, int) else None
                         if tool:
+                            title = tool.title or tool.name or "Claude action"
                             arguments = dict(tool.arguments or {})
-                            title = str(arguments.pop("title", None) or "Claude action")
                             input_json = (
                                 tool_input_json.get(index) if isinstance(index, int) else None
                             )
@@ -256,7 +257,8 @@ async def run_claude_code_agent(
                                 call_id=tool.call_id,
                                 name=tool.name,
                                 status="completed",
-                                arguments={**arguments, "title": title},
+                                arguments=arguments,
+                                title=title,
                                 output="",
                             )
                     continue
@@ -293,9 +295,10 @@ async def run_claude_code_agent(
                                 completed_tool_call_ids.add(call_id)
                                 yield AgentToolUpdate(
                                     call_id=call_id.strip(),
-                                    name="agent_tool",
+                                    name=title,
                                     status="completed",
-                                    arguments={**arguments, "title": title},
+                                    arguments=arguments,
+                                    title=title,
                                     output="",
                                 )
                 elif class_name == "ResultMessage":

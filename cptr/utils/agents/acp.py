@@ -331,21 +331,24 @@ def acp_tool_from_update(params: dict[str, Any]) -> dict[str, Any] | None:
     command = _command_from_raw_input(raw_input)
     title = str(update.get("title") or update.get("kind") or "Agent tool").strip()
     status = _tool_status(update.get("status"))
-    args: dict[str, Any] = {}
     if command:
         name = "run_command"
-        args["command"] = command
+        args: dict[str, Any] = {"command": command}
     else:
-        name = "agent_tool"
-        args["title"] = title
-        if raw_input is not None:
-            args["input"] = raw_input
+        name = title
+        if isinstance(raw_input, dict):
+            args = dict(raw_input)
+        elif raw_input is not None:
+            args = {"raw_input": raw_input}
+        else:
+            args = {}
     output = _tool_output(update)
     return {
         "call_id": call_id.strip(),
         "name": name,
         "status": status,
         "arguments": args,
+        "title": title,
         "output": output,
     }
 

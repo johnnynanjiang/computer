@@ -23,6 +23,10 @@ class AgentToolUpdate:
     name: str | None = None
     arguments: dict[str, Any] | None = None
     output: str | None = None
+    # Human-friendly display name, kept separate from `name` (a coarse
+    # category — e.g. "run_command" selects the output-truncation limit in
+    # chat_task.py) so adapters stop smuggling it into arguments["title"].
+    title: str | None = None
 
 
 @dataclass

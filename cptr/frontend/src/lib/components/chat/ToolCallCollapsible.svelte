@@ -10,7 +10,13 @@
 		done: boolean;
 		chatId: string | null;
 		messageId: string;
-		toolLabel: (name: string, args: any) => string;
+		toolLabel: (
+			name: string,
+			args: any,
+			nativeAgent?: boolean,
+			title?: string,
+			hint?: string
+		) => string;
 		onapprove: (messageId: string, callId: string, approved: boolean) => void;
 	}
 
@@ -176,7 +182,9 @@
 			{/if}
 
 			<div class="flex-1 min-w-0 line-clamp-1">
-				<span class="font-normal">{toolLabel(toolName, args)}</span>
+				<span class="font-normal"
+					>{toolLabel(toolName, args, item.native_agent, item.title, item.hint)}</span
+				>
 			</div>
 
 			{#if isPending && chatId}
